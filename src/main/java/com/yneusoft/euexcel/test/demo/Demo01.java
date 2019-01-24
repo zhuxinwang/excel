@@ -20,9 +20,12 @@ import static com.yneusoft.euexcel.tool.ExcelTool.setHideSheet;
  */
 public class Demo01 {
 
-    static String PATH = "D:\\test\\workbook56.xls";
+    static String PATH = "D:\\test\\workbook57.xls";
 
     public static void main(String[] args) throws IOException {
+
+        long startTime = System.currentTimeMillis();
+
         StudentTemplate studentTemplate = new StudentTemplate();
         Workbook workbook = ExcelExportUtil.exportExcel(new ExportParams("主标题", "sheet表名"),
                 StudentTemplate.class, new ArrayList<>());
@@ -46,5 +49,7 @@ public class Demo01 {
 
         FileOutputStream fileOut = new FileOutputStream(PATH);
         workbook.write(fileOut);
+
+        System.out.println("运行总时间：" + (System.currentTimeMillis() - startTime));
     }
 }

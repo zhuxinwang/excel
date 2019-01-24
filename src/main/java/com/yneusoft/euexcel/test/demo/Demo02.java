@@ -8,6 +8,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -18,32 +19,34 @@ import java.util.List;
  */
 public class Demo02 {
 
-    static String PATH = "D:\\test\\workbook56.xls";
+    static String PATH = "D:\\test\\workbook58.xls";
 
     public static void main(String[] args) throws IOException {
-        StudentReport studentReport = new StudentReport();
-        studentReport.setName("朱新旺");
-        studentReport.setSex(true);
-        studentReport.setIdType("身份证");
-        studentReport.setSchool("清华大学");
-        studentReport.setRegistrationDate(new Date());
-        studentReport.setBirthday(new Date());
-        StudentReport studentReport1 = new StudentReport();
-        studentReport1.setName("朱大大");
-        studentReport1.setSex(true);
-        studentReport1.setIdType("港澳台通行证");
-        studentReport1.setSchool("同济大学");
-        studentReport1.setRegistrationDate(new Date());
-        studentReport1.setBirthday(new Date());
+
+        long startTime = System.currentTimeMillis();
+
         List<StudentReport> studentReportList = new ArrayList<>();
-        studentReportList.add(studentReport);
-        studentReportList.add(studentReport1);
+        StudentReport studentReport = null;
+        for(int i = 0 ;i < 1000; i++){
+
+            studentReport = new StudentReport();
+            studentReport.setName("朱新旺" + i);
+            studentReport.setSex(true);
+            studentReport.setIdType("身份证" + i);
+            studentReport.setSchool("清华大学" + i);
+            studentReport.setRegistrationDate(new Date());
+            studentReport.setBirthday(new Date());
+            studentReportList.add(studentReport);
+        }
+
 
         Workbook workbook = ExcelExportUtil.exportExcel(new ExportParams("主标题", "sheet表名"),
                 StudentReport.class, studentReportList);
 
         FileOutputStream fileOut = new FileOutputStream(PATH);
         workbook.write(fileOut);
+
+        System.out.println("运行总时间：" + (System.currentTimeMillis() - startTime));
     }
 
 
