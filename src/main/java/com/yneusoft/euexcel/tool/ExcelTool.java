@@ -1,7 +1,9 @@
 package com.yneusoft.euexcel.tool;
 
+import cn.afterturn.easypoi.excel.annotation.Excel;
 import org.apache.poi.hssf.usermodel.DVConstraint;
 import org.apache.poi.hssf.usermodel.HSSFDataValidation;
+import org.apache.poi.ss.formula.functions.T;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -10,10 +12,7 @@ import org.apache.poi.ss.util.CellRangeAddressList;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Excel工具类
@@ -33,20 +32,18 @@ public class ExcelTool {
     /**
      * 1.将下拉列表的数据写入隐藏表及设置当前下拉列
      * @param workbook 工作簿
-     * @param object 下载传输的下拉对象类型
+     * @param t 下载传输的下拉对象类型
      * @return 新的工作簿
      */
-    public static Workbook setHideSheet(Workbook workbook, Object object) throws IllegalAccessException, InstantiationException {
-        Class tClass = object.getClass();
-        Field[] fields = tClass.getDeclaredFields();
+    public static <T> Workbook setDropDownSheet(Workbook workbook, T t) throws IllegalAccessException, InstantiationException {
+        Class clazz = t.getClass();
+        Field[] fields = clazz.getDeclaredFields();
         //判断类型为List的，将设置为隐藏表；将其数据取出后写入到sheet表中
         if (fields.length > 0){
             for (Field f:fields) {
                 if(f.getType() == Map.class){
                     //将第一张sheet表为list下的字段设置为下拉
-                    setDropDownData(workbook,f,object);
-                    //设置下拉数据到隐藏的sheet表中
-                    setDropDownDataToSheetHidden(workbook,f,object);
+                    setDropDownData(workbook,f,t);
                 }
             }
         }
@@ -59,16 +56,21 @@ public class ExcelTool {
      * @param workbook 工作簿
      * @param field 反射的地段
      */
-    private static void setDropDownData(Workbook workbook,Field field,Object object) throws IllegalAccessException {
+    private static <T> void setDropDownData(Workbook workbook, Field field, T t) throws IllegalAccessException {
         Sheet tempSheet = null;
         int index = 0;
         tempSheet = workbook.getSheetAt(0);
         field.setAccessible(true);
-        Map<Integer,String> dropDownDataMap = (Map<Integer,String>) field.get(object);
+        Map<Integer,String> dropDownDataMap = (Map<Integer,String>) field.get(t);
+        List<String> dropDownDataList = new ArrayList<>();
+        // 拼接key-vlaue
+        dropDownDataMap.forEach((k,v)->{
+            dropDownDataList.add(k + "-" + v);
+        });
         // 加载下拉列表内容
-        DVConstraint constraint = DVConstraint.createExplicitListConstraint(new ArrayList<>(dropDownDataMap.values()).toArray(new String[0]));
+        DVConstraint constraint = DVConstraint.createExplicitListConstraint(dropDownDataList.toArray(new String[0]));
         // 把下拉内容加载到对应的列上
-        Field[] fields = object.getClass().getDeclaredFields();
+        Field[] fields = t.getClass().getDeclaredFields();
         List<String> fieldNames = new ArrayList<>();
         Arrays.asList(fields).forEach(f -> {
             fieldNames.add(f.getName());
@@ -80,7 +82,8 @@ public class ExcelTool {
         // 设置具体数据
         HSSFDataValidation dataValidationList = new HSSFDataValidation(regions, constraint);
         // 在对应单元格上提示从下拉列表选择值
-        dataValidationList.createPromptBox("请从下拉列表中选择值", dropDownDataMap.toString());
+        String title = field.getAnnotation(Excel.class).name();
+        dataValidationList.createPromptBox("", "请从下拉列表中选择" + title);
         tempSheet.addValidationData(dataValidationList);
     }
 

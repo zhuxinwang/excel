@@ -11,7 +11,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.yneusoft.euexcel.tool.ExcelTool.setHideSheet;
+import static com.yneusoft.euexcel.tool.ExcelTool.setDropDownSheet;
+
 
 /**
  * 1.下载指定模版
@@ -20,7 +21,7 @@ import static com.yneusoft.euexcel.tool.ExcelTool.setHideSheet;
  */
 public class Demo01 {
 
-    static String PATH = "D:\\test\\workbook60.xls";
+    static String PATH = "D:\\test\\workbook66.xls";
 
     public static void main(String[] args) throws IOException {
 
@@ -42,7 +43,7 @@ public class Demo01 {
 
 
         try {
-            workbook = setHideSheet(workbook, studentTemplate);
+            workbook = setDropDownSheet(workbook, studentTemplate);
         } catch (IllegalAccessException | InstantiationException e) {
             e.printStackTrace();
         }
