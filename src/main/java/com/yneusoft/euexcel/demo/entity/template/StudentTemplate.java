@@ -1,4 +1,4 @@
-package com.yneusoft.euexcel.test.entity.report;
+package com.yneusoft.euexcel.demo.entity.template;
 
 import cn.afterturn.easypoi.excel.annotation.Excel;
 import lombok.Data;
@@ -13,37 +13,42 @@ import java.util.Map;
  * @date 2019/1/21 0021 17:48
  */
 @Data
-public class StudentReport implements Serializable {
+public class StudentTemplate implements Serializable {
 
     /**
      * 学生证件类型
      */
     @Excel(name = "证件类型")
-    private String idType;
+    @NotNull
+    private Map<String,String> idType;
 
     /**
      * 学生姓名
      */
-    @NotNull
     @Excel(name = "学生姓名")
+
     private String name;
 
     /**
      * 学生性别
      */
     @Excel(name = "学生性别")
+    @NotNull
     private Boolean sex;
 
     /**
      * 毕业学校
      */
     @Excel(name = "毕业学校")
-    private String school;
+    @NotNull
+    private Map<String,String> school;
 
     @Excel(name = "出生日期", databaseFormat = "yyyyMMddHHmmss", format = "yyyy-MM-dd")
+    @NotNull
     private Date birthday;
 
     @Excel(name = "进校日期", databaseFormat = "yyyyMMddHHmmss", format = "yyyy-MM-dd")
+    @NotNull
     private Date registrationDate;
 
 

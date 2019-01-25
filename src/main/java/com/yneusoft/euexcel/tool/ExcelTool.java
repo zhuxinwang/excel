@@ -3,15 +3,18 @@ package com.yneusoft.euexcel.tool;
 import cn.afterturn.easypoi.excel.annotation.Excel;
 import org.apache.poi.hssf.usermodel.DVConstraint;
 import org.apache.poi.hssf.usermodel.HSSFDataValidation;
-import org.apache.poi.ss.formula.functions.T;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.hssf.usermodel.HSSFDateUtil;
+import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddressList;
 import org.springframework.stereotype.Component;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.servlet.http.HttpServletResponse;
+import javax.validation.constraints.*;
+import java.io.*;
 import java.lang.reflect.Field;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
@@ -33,9 +36,8 @@ public class ExcelTool {
      * 1.将下拉列表的数据写入隐藏表及设置当前下拉列
      * @param workbook 工作簿
      * @param t 下载传输的下拉对象类型
-     * @return 新的工作簿
      */
-    public static <T> Workbook setDropDownSheet(Workbook workbook, T t) throws IllegalAccessException, InstantiationException {
+    public static <T> void setDropDownSheet(Workbook workbook, T t) throws IllegalAccessException, InstantiationException {
         Class clazz = t.getClass();
         Field[] fields = clazz.getDeclaredFields();
         //判断类型为List的，将设置为隐藏表；将其数据取出后写入到sheet表中
@@ -47,7 +49,6 @@ public class ExcelTool {
                 }
             }
         }
-        return workbook;
     }
 
 
@@ -61,7 +62,7 @@ public class ExcelTool {
         int index = 0;
         tempSheet = workbook.getSheetAt(0);
         field.setAccessible(true);
-        Map<Integer,String> dropDownDataMap = (Map<Integer,String>) field.get(t);
+        Map<String,String> dropDownDataMap = (Map<String,String>) field.get(t);
         List<String> dropDownDataList = new ArrayList<>();
         // 拼接key-vlaue
         dropDownDataMap.forEach((k,v)->{
@@ -119,5 +120,268 @@ public class ExcelTool {
         workbook.setSheetHidden(workbook.getSheetIndex(field.getName()),true);
     }
 
+
+
+    /**
+     * 4.将Sheet表中的数据封装对象中
+     * @param workbook excel表中工作簿
+     * @param clazz 需要返回对象的class
+     * @param <T> 对象
+     * @param dataStartColumn 数据开始行
+     * @return list<T>
+     */
+    public static <T> List<T> populateSheetToObj(Workbook workbook,Class<T> clazz,Integer dataStartColumn,List<Map<Integer,Integer>> errorCell) throws IllegalAccessException, InstantiationException, ParseException {
+        //主数据sheet
+        Sheet dataSheet = workbook.getSheetAt(0);
+        List<T> list = new ArrayList<>();
+        //1.获取注解@Excel上的name属性
+        Map<String, String> titleMap = getAnnotationExcelNameToMap(clazz);
+
+        //获取sheet总行数
+        int totalRows =dataSheet.getPhysicalNumberOfRows();
+        //获取sheet总列数
+        int totalColumn = dataSheet.getRow(dataStartColumn).getPhysicalNumberOfCells();
+        for (int i = dataStartColumn ;i < totalRows; i++){
+            //构造业务对象
+            T t  = clazz.newInstance();
+            for(int j = 0; j< totalColumn; j++){
+                //获取当前单元格
+                Cell cell = dataSheet.getRow(i).getCell(j);
+                //当前单元格的标题title
+                String cellTitle = dataSheet.getRow(dataStartColumn-1).getCell(j).getStringCellValue();
+                //当前单元格的值
+                String cellValue = getCellValueConvertString(cell);
+                Map<Integer,Integer> errorCellMap = new HashMap<>(1);
+                for (Map.Entry<String,String> entry:titleMap.entrySet()){
+                    //如果标题相等，则写入相对应的对象
+                    if(entry.getValue().equalsIgnoreCase(cellTitle)){
+                        Class businessClazz = t.getClass();
+                        Field[] fieldsNewInstance = businessClazz.getDeclaredFields();
+                        for(Field field:fieldsNewInstance){
+                            if(field.getName().equalsIgnoreCase(entry.getKey())){
+                                boolean flag = field.isAccessible();
+                                field.setAccessible(true);
+                                // 设置对象的属性值的同时判断属性上是否有对应注解的规则满足，不满足则计入错误列表
+                                if(!annotationRule(field,cellValue)){
+                                    errorCellMap.put(i,j);
+                                    errorCell.add(errorCellMap);
+                                    continue;
+                                }
+                                if(field.getType() == Map.class){
+                                    //将对应关系取出后整理成Map
+                                    field.set(t,stringToMap(cellValue));
+                                } else if(field.getType() == Boolean.class){
+                                    field.set(t,Boolean.valueOf(cellValue));
+                                } else if(field.getType() == Date.class){
+                                    field.set(t,new SimpleDateFormat("yyyy-MM-dd").parse(cellValue));
+                                } else{
+                                    field.set(t, cellValue);
+                                }
+                                field.setAccessible(flag);
+                            }
+                        }
+                    }
+                }
+            }
+            list.add(t);
+        }
+        return list;
+    }
+
+    /**
+     * 5.将指定单元格背景替换颜色
+     * @param workbook 工作簿
+     * @param cellList 指定单元格列表
+     */
+    public static void setCellBackground(Workbook workbook,List<Map<Integer,Integer>> cellList){
+        Sheet sheet = workbook.getSheetAt(0);
+        CellStyle cellStyle = workbook.createCellStyle();
+        cellStyle.setFillForegroundColor(IndexedColors.RED.getIndex());
+        cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        cellList.forEach(m->{
+            m.forEach((k,v)->{
+                sheet.getRow(k).createCell(v).setCellStyle(cellStyle);
+            });
+        });
+    }
+
+
+
+    /**
+     * 6.判断值是否满足Annotation上的规则，已支持注解 [NotNull，Size，Max，Min，Pattern]
+     * @param field 反射字段
+     * @param value 需要校验的值
+     * @return true/false
+     */
+    public static Boolean annotationRule(Field field,String value){
+        boolean flag = true;
+
+        //NotNull注解
+        if(field.isAnnotationPresent(NotNull.class)){
+            if(value == null || "".equals(value)){
+                flag = false;
+            }
+        }
+        //Size注解
+        else if(field.isAnnotationPresent(Size.class)){
+            Size sizeAnno = field.getAnnotation(Size.class);
+            if(sizeAnno.min() < Integer.valueOf(value) && Integer.valueOf(value) > sizeAnno.max()){
+                flag = false;
+            }
+        }
+        //Max注解
+        else if(field.isAnnotationPresent(Max.class)){
+            Max maxAnno = field.getAnnotation(Max.class);
+            if(Integer.valueOf(value) > maxAnno.value()){
+                flag = false;
+            }
+        }
+        //Min注解
+        else if (field.isAnnotationPresent(Min.class)){
+            Min minAnno = field.getAnnotation(Min.class);
+            if(Integer.valueOf(value) < minAnno.value()){
+                flag = false;
+            }
+        }
+        //Pattern注解，正则表达式
+        else if(field.isAnnotationPresent(Pattern.class)){
+            Pattern patternAnno = field.getAnnotation(Pattern.class);
+            if(!java.util.regex.Pattern.matches(patternAnno.regexp(),value)){
+                flag = false;
+            }
+        }
+
+        return flag;
+    }
+
+
+
+    /**
+     * 7.判断单元格里的值，用不同方式获取后转为String
+     * @param cell 目标单元格
+     * @return value 的String字符串
+     */
+    private static String getCellValueConvertString(Cell cell) {
+        String cellValue = null;
+        if(cell != null){
+            switch (cell.getCellType()){
+                case STRING:
+                    cellValue = cell.getStringCellValue();
+                    break;
+                case BOOLEAN:
+                    cellValue = String.valueOf(cell.getBooleanCellValue()).trim();
+                    break;
+                case NUMERIC:
+                    //判断日期类型
+                    if (HSSFDateUtil.isCellDateFormatted(cell)) {
+                        SimpleDateFormat dateFormat=new SimpleDateFormat("yyyy-MM-dd");
+                        cellValue = dateFormat.format(cell.getDateCellValue());
+                    }
+                    else{
+                        cellValue = String.valueOf(cell.getNumericCellValue());
+                    }
+                    break;
+                default:
+                    cellValue = null;
+                    break;
+            }
+        }
+        return cellValue;
+    }
+
+
+    /**
+     * 8.获取注解@Excel上的name属性
+     * @param clazz Class类
+     * @param <T> Class类泛型
+     * @return Map<String,String>
+     */
+    private static <T> Map<String, String> getAnnotationExcelNameToMap(Class<T> clazz) {
+        //反射对象，获取注解Excel上的name
+        Map<String,String> classData = new HashMap<>(4);
+        Field[] fields = clazz.getDeclaredFields();
+        Arrays.stream(fields).forEach(f->{
+            f.setAccessible(true);
+            classData.put(String.valueOf(f.getName()),f.getAnnotation(Excel.class).name());
+        });
+        return classData;
+    }
+
+
+    /**
+     * 9.将字符串按照规则截取出来后放入Map中
+     * @param mapString 字符串  1-身份证
+     * @return Map数组
+     */
+    private static Map<String,String> stringToMap(String mapString){
+        Map<String,String> dataMap = new HashMap<>(1);
+        if(mapString != null){
+            String[] str = mapString.split("-");
+            dataMap.put("id",str[0]);
+            dataMap.put("name",str[1]);
+        }
+        return dataMap;
+    }
+
+    /**
+     * 10.将隐藏表中下拉数据存入Map
+     * @param sheet sheet表
+     * @return Map<Integer,String>
+     */
+    private static Map<Integer,String> sheetToMap(Sheet sheet){
+        Map<Integer,String> map = new HashMap<>(4);
+        int totalRows =sheet.getPhysicalNumberOfRows();
+        for (int i = 0; i < totalRows; i++) {
+            map.put((int) sheet.getRow(i).getCell(0).getNumericCellValue(),sheet.getRow(i).getCell(1).getStringCellValue());
+        }
+        return map;
+    }
+
+
+
+    /**
+     * 11.下载Excel文件
+     * @param response Http返回
+     * @param workbook 工作簿
+     * @param excelName 文件的名称
+     */
+    public static void downExcel(HttpServletResponse response, Workbook workbook, String excelName) throws IOException {
+        response.setContentType("octets/stream");
+        response.addHeader("Content-Disposition", "attachment;filename="+new String(excelName.getBytes("gb2312"), "ISO8859-1" )+".xls");
+        OutputStream os = response.getOutputStream();
+        workbook.write(os);
+        os.flush();
+        os.close();
+        workbook.close();
+    }
+
+    /**
+     * 12.上传Excel文件
+     * @param multipartFile 文件
+     * @return InputSteam流
+     */
+    public static InputStream uploadExcel(MultipartFile multipartFile) throws IOException {
+        //参数为空，直接返回空
+        if(multipartFile == null) {
+            return null;
+        }
+        File file = multipartFileToFile(multipartFile);
+        return new FileInputStream(file);
+    }
+
+    /**
+     * 13.MultipartFile转File
+     * @param multipartFile MultipartFile
+     * @return File
+     */
+    private static File multipartFileToFile(MultipartFile multipartFile) throws IOException {
+        File file = new File(Objects.requireNonNull(multipartFile.getOriginalFilename()));
+        FileOutputStream fileOutputStream = null;
+        fileOutputStream = new FileOutputStream(file);
+        fileOutputStream.write(multipartFile.getBytes());
+        fileOutputStream.close();
+        multipartFile.transferTo(file);
+        return file;
+    }
 
 }
