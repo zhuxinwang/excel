@@ -13,19 +13,16 @@ import java.util.Date;
  */
 @Data
 public class TeacherReport implements Serializable {
-
     /**
      * 教师姓名
      */
     @Excel(name = "教师姓名")
     private String name;
-
     /**
      * 教师证件类型
      */
     @Excel(name = "证件类型")
     private String idType;
-
     /**
      * 教师学校
      */

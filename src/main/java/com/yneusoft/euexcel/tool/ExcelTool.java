@@ -1,12 +1,15 @@
 package com.yneusoft.euexcel.tool;
 
+import cn.afterturn.easypoi.excel.ExcelExportUtil;
 import cn.afterturn.easypoi.excel.annotation.Excel;
+import cn.afterturn.easypoi.excel.entity.ExportParams;
+import com.yneusoft.euexcel.demo.entity.template.StudentTemplate;
 import org.apache.poi.hssf.usermodel.DVConstraint;
 import org.apache.poi.hssf.usermodel.HSSFDataValidation;
 import org.apache.poi.hssf.usermodel.HSSFDateUtil;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddressList;
-import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
@@ -22,7 +25,6 @@ import java.util.*;
  * @author 易用软件-朱新旺(zhuxinwang@aliyun.com)
  * @date 2019/1/23 0023 9:58
  */
-@Component
 public class ExcelTool {
 
     /**
@@ -360,13 +362,13 @@ public class ExcelTool {
      * @param multipartFile 文件
      * @return InputSteam流
      */
-    public static InputStream uploadExcel(MultipartFile multipartFile) throws IOException {
+    public static Workbook uploadExcelToWorkBook(MultipartFile multipartFile) throws IOException {
         //参数为空，直接返回空
         if(multipartFile == null) {
             return null;
         }
         File file = multipartFileToFile(multipartFile);
-        return new FileInputStream(file);
+        return new HSSFWorkbook(new FileInputStream(file));
     }
 
     /**
@@ -383,5 +385,73 @@ public class ExcelTool {
         multipartFile.transferTo(file);
         return file;
     }
+
+    /**
+     * 14.将Excel转为Base64
+      * @param workbook 工作簿
+     * @return Base64格式的Excel
+     * @throws IOException IO异常
+     */
+    public static String excelToBase64(Workbook workbook) throws IOException {
+        StringBuilder sb = new StringBuilder("data:application/vnd.ms-excel;base64,");
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(102400);
+        workbook.write(byteArrayOutputStream);
+        return sb.append(Base64.getEncoder().encodeToString(byteArrayOutputStream.toByteArray())).toString();
+    }
+
+    /**
+     * 15.将错误文件 -> Excel -> 内存流 -> Base64
+     * @param workbook 工作簿
+     * @param errorCell 错误单元格列表
+     * @param errorFileName 错误Excel名称
+     * @return Map错误信息
+     * @throws IOException IO异常
+     */
+    public static Map<String,Object> errorCellExcelFile(Workbook workbook, List<Map<Integer, Integer>> errorCell,String errorFileName) throws IOException {
+        Map<String,Object> result = null;
+        if(errorCell.size() > 0){
+            result = new HashMap<>(2);
+            setCellBackground(workbook,errorCell);
+            result.put("name",errorFileName);
+            result.put("errorFileBase64",ExcelTool.excelToBase64(workbook));
+        }
+        return result;
+    }
+
+    /**
+     * 16.下载模版
+     * @param response Http返回
+     * @param excelName 模版名称
+     * @param title 模版标题
+     * @param sheetName sheet表名
+     * @param t 模版类型和数据
+     * @param <T> 模版类型
+     */
+    public static <T> void templateDownload(HttpServletResponse response, String excelName, String title
+            , String sheetName, T t) throws InstantiationException, IllegalAccessException, IOException {
+        Workbook workbook = ExcelExportUtil.exportExcel(new ExportParams(title, sheetName),
+                t.getClass(), new ArrayList<>());
+        setDropDownSheet(workbook, t);
+        downExcel(response,workbook,excelName);
+
+    }
+
+    /**
+     * 17.导出数组
+     * @param response Http返回
+     * @param excelName 导出数据Excel名称
+     * @param title 标题
+     * @param sheetName sheet表名称
+     * @param tList 导出数据
+     * @param <T> 类型
+     * @throws IOException IO异常
+     */
+    public static <T> void reportDownload(HttpServletResponse response, String excelName, String title
+            , String sheetName,List<T> tList) throws IOException {
+        Workbook workbook = ExcelExportUtil.exportExcel(new ExportParams(title, sheetName),
+                tList.get(0).getClass(), tList);
+        downExcel(response,workbook,excelName);
+    }
+
 
 }

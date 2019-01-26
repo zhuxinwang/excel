@@ -14,19 +14,16 @@ import java.util.Map;
  */
 @Data
 public class StudentTemplate implements Serializable {
-
     /**
      * 学生证件类型
      */
     @Excel(name = "证件类型")
     @NotNull
     private Map<String,String> idType;
-
     /**
      * 学生姓名
      */
     @Excel(name = "学生姓名")
-
     private String name;
 
     /**
@@ -43,14 +40,12 @@ public class StudentTemplate implements Serializable {
     @NotNull
     private Map<String,String> school;
 
-    @Excel(name = "出生日期", databaseFormat = "yyyyMMddHHmmss", format = "yyyy-MM-dd")
+    @Excel(name = "出生日期")
     @NotNull
     private Date birthday;
 
-    @Excel(name = "进校日期", databaseFormat = "yyyyMMddHHmmss", format = "yyyy-MM-dd")
+    @Excel(name = "进校日期")
     @NotNull
     private Date registrationDate;
-
-
 
 }
